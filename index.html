@@ -77,20 +77,19 @@
         return;
       }
 
-      // Separar nonce (12) + ciphertext + tag (16)
+      // La estructura es: nonce(12) + ciphertext + tag(16)
       const nonce = datos.slice(0, 12);
-      const tag = datos.slice(-16);
-      const ciphertext = datos.slice(12, -16);
+      const payload = datos.slice(12); // ciphertext + tag juntos
 
       // Derivar clave AES-256 con SHA-256
       const keyBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
       const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
 
-      // Descifrar
+      // Descifrar (sin additionalData — Web Crypto rechaza null)
       const descifrado = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: nonce, additionalData: null, tagLength: 128 },
+        { name: 'AES-GCM', iv: nonce, tagLength: 128 },
         key,
-        new Uint8Array([...ciphertext, ...tag])
+        payload
       );
 
       const texto = new TextDecoder().decode(descifrado);
