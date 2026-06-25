@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>🔓 Descifrar AES-256-GCM</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,6 +28,7 @@
   .err { background: #f8d7da; color: #721c24; display: block; }
   .info { font-size: 12px; color: #888; text-align: center; margin-top: 16px; }
   .info a { color: #0d6efd; }
+  #debug { font-size: 11px; color: #999; margin-top: 10px; display: none; word-break: break-all; }
 </style>
 </head>
 <body>
@@ -45,19 +49,30 @@
   <div id="resultado" class="result"></div>
 
   <p class="info">
-    Compatible con mensajes cifrados desde 
+    Compatible con mensajes cifrados desde
     <a href="https://github.com/jcervi18-lab" target="_blank">MacLab Control Panel</a>
   </p>
 </div>
 
 <script>
-(async function() {
+(function() {
+  'use strict';
+
   const cifradoEl = document.getElementById('cifrado');
   const claveEl = document.getElementById('clave');
   const btn = document.getElementById('btn');
   const resultEl = document.getElementById('resultado');
 
   btn.addEventListener('click', descifrar);
+
+  function b64ToBytes(str) {
+    // Limpiar espacios y convertir url-safe a base64 standard
+    str = str.trim().replace(/\s/g, '');
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    // Añadir padding si falta
+    while (str.length % 4 !== 0) str += '=';
+    return Uint8Array.from(atob(str), function(c) { return c.charCodeAt(0); });
+  }
 
   async function descifrar() {
     const raw = cifradoEl.value.trim();
@@ -69,34 +84,70 @@
     }
 
     try {
-      // Decodificar base64 → bytes
-      const datos = Uint8Array.from(atob(raw.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
-
-      if (datos.length < 28) {
-        mostrar('❌ El texto cifrado es demasiado corto.', 'err');
+      var datos;
+      try {
+        datos = b64ToBytes(raw);
+      } catch(ex) {
+        mostrar('❌ El texto cifrado no tiene formato base64 válido.', 'err');
         return;
       }
 
-      // La estructura es: nonce(12) + ciphertext + tag(16)
+      if (datos.length < 28) {
+        mostrar('❌ El texto cifrado es demasiado corto (mínimo 28 bytes).', 'err');
+        return;
+      }
+
+      // Estructura: nonce(12) + ciphertext + tag(16)
       const nonce = datos.slice(0, 12);
       const payload = datos.slice(12); // ciphertext + tag juntos
 
-      // Derivar clave AES-256 con SHA-256
-      const keyBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
-      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+      if (typeof crypto === 'undefined' || !crypto.subtle) {
+        mostrar('❌ Tu navegador no soporta Web Crypto API (HTTPS requerido).', 'err');
+        return;
+      }
 
-      // Descifrar (sin additionalData — Web Crypto rechaza null)
-      const descifrado = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: nonce, tagLength: 128 },
-        key,
-        payload
-      );
+      // Derivar clave AES-256 vía SHA-256
+      var keyBytes, key;
 
-      const texto = new TextDecoder().decode(descifrado);
-      mostrar(`✅ Mensaje descifrado:<br><br><strong>${escapeHtml(texto)}</strong>`);
+      try {
+        keyBytes = await crypto.subtle.digest('SHA-256',
+          new TextEncoder().encode(clave));
+        key = await crypto.subtle.importKey('raw', keyBytes,
+          { name: 'AES-GCM' }, false, ['decrypt']);
+      } catch(ex) {
+        mostrar('❌ Error al procesar la clave: ' + ex.message, 'err');
+        return;
+      }
+
+      // Descifrar
+      var descifrado;
+
+      try {
+        descifrado = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+          key,
+          payload
+        );
+      } catch(ex) {
+        mostrar('❌ Clave incorrecta o mensaje corrupto.', 'err');
+        return;
+      }
+
+      var texto;
+
+      try {
+        texto = new TextDecoder().decode(descifrado);
+      } catch(ex) {
+        mostrar('❌ Error al decodificar el resultado.', 'err');
+        return;
+      }
+
+      mostrar('✅ Mensaje descifrado:<br><br><strong>' +
+        texto.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+        '</strong>');
 
     } catch(e) {
-      mostrar('❌ Clave incorrecta o mensaje corrupto.', 'err');
+      mostrar('❌ Error inesperado: ' + (e.message || e), 'err');
     }
   }
 
@@ -104,10 +155,6 @@
     resultEl.className = 'result ' + tipo;
     resultEl.innerHTML = msg;
     resultEl.style.display = 'block';
-  }
-
-  function escapeHtml(text) {
-    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 })();
 </script>
