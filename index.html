@@ -259,7 +259,7 @@
 
       mostrar(resultEl,
         '✅ Mensaje descifrado:<br><br><strong>' +
-        texto.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+        texto.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') +
         '</strong>',
         'ok'
       );
