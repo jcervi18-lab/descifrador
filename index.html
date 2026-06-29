@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>🔐 Cifrar / Descifrar AES-256-GCM</title>
+<title>🔐 Cifrar / Descifrar / Archivos AES-256-GCM</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -24,6 +24,7 @@
   .tab.active { background: white; color: #0d6efd; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
   .tab.cifrar.active { color: #0d6efd; }
   .tab.descifrar.active { color: #198754; }
+  .tab.archivo.active { color: #6f42c1; }
 
   .panel { display: none; }
   .panel.active { display: block; }
@@ -66,6 +67,7 @@
   <div class="tabs">
     <button class="tab cifrar active" data-tab="cifrar" id="tabCifrar">🔒 Cifrar</button>
     <button class="tab descifrar" data-tab="descifrar" id="tabDescifrar">🔓 Descifrar</button>
+    <button class="tab archivo" data-tab="archivo" id="tabArchivo">📁 Archivo</button>
   </div>
 
   <!-- Panel Cifrar -->
@@ -100,7 +102,24 @@
     <div id="resultDescifrar" class="result"></div>
   </div>
 
-  <p class="footer">Compatible con Jcervi_Lab Control Panel</p>
+  <!-- Panel Archivo -->
+  <div class="panel" id="panelArchivo">
+    <label for="archivoInput">Selecciona archivo .enc</label>
+    <input type="file" id="archivoInput" accept=".enc">
+    <div id="archivoInfo" style="font-size:12px;color:#888;margin-top:4px;"></div>
+
+    <label for="claveArchivo">Clave</label>
+    <div style="position:relative">
+      <input type="password" id="claveArchivo" placeholder="Contraseña con la que se cifró">
+      <button class="clear-btn" id="clearClaveArchivo" title="Limpiar">✕</button>
+    </div>
+
+    <button class="btn btn-descifrar" id="btnDescifrarArchivo">🔓 Descifrar y descargar</button>
+
+    <div id="resultArchivo" class="result"></div>
+  </div>
+
+  <p class="footer">Compatible con Jcervi_Lab Control Panel · <a href="https://github.com/jcervi18-lab/descifrador" target="_blank">GitHub</a></p>
 </div>
 
 <script>
@@ -111,7 +130,8 @@
   const tabs = document.querySelectorAll('.tab');
   const panels = {
     cifrar: document.getElementById('panelCifrar'),
-    descifrar: document.getElementById('panelDescifrar')
+    descifrar: document.getElementById('panelDescifrar'),
+    archivo: document.getElementById('panelArchivo')
   };
 
   tabs.forEach(t => {
@@ -127,6 +147,9 @@
   });
 
   // ---- Clear buttons ----
+  document.getElementById('clearClaveArchivo').addEventListener('click', function() {
+    document.getElementById('claveArchivo').value = '';
+  });
   document.getElementById('clearClaveCifrar').addEventListener('click', function() {
     document.getElementById('claveCifrar').value = '';
   });
@@ -268,12 +291,99 @@
     }
   });
 
+  // ---- File info display ----
+  document.getElementById('archivoInput').addEventListener('change', function() {
+    const file = this.files[0];
+    const info = document.getElementById('archivoInfo');
+    if (file) {
+      info.textContent = '📄 ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    } else {
+      info.textContent = '';
+    }
+  });
+
+  // ---- Descifrar archivo ----
+  document.getElementById('btnDescifrarArchivo').addEventListener('click', async function() {
+    const fileInput = document.getElementById('archivoInput');
+    const clave = document.getElementById('claveArchivo').value;
+    const resultEl = document.getElementById('resultArchivo');
+    ocultar(resultEl);
+
+    if (!fileInput.files.length) {
+      mostrar(resultEl, '❌ Selecciona un archivo .enc primero.', 'err');
+      return;
+    }
+    if (!clave) {
+      mostrar(resultEl, '❌ Escribe la clave.', 'err');
+      return;
+    }
+
+    try {
+      const file = fileInput.files[0];
+      mostrar(resultEl, '⏳ Descifrando...', 'info');
+
+      // Leer archivo como ArrayBuffer
+      const buffer = await file.arrayBuffer();
+      const datos = new Uint8Array(buffer);
+
+      if (datos.length < 28) {
+        mostrar(resultEl, '❌ El archivo es demasiado corto (mínimo 28 bytes).', 'err');
+        return;
+      }
+
+      // Estructura: nonce(12) + ciphertext+tag(16)
+      const nonce = datos.slice(0, 12);
+      const payload = datos.slice(12);
+
+      // Derivar clave
+      const keyBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
+      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+
+      // Descifrar
+      var descifrado;
+      try {
+        descifrado = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+          key,
+          payload
+        );
+      } catch(ex) {
+        mostrar(resultEl, '❌ Clave incorrecta o archivo corrupto.', 'err');
+        return;
+      }
+
+      // Crear y descargar archivo descifrado
+      const nombreOriginal = file.name.replace(/\.enc$/i, '') || 'descifrado';
+      const blob = new Blob([descifrado]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreOriginal;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      mostrar(resultEl,
+        '✅ Archivo descifrado correctamente.<br>' +
+        '<strong>' + nombreOriginal + '</strong> (' + (descifrado.byteLength / 1024).toFixed(1) + ' KB)<br>' +
+        'La descarga debería iniciarse automáticamente.',
+        'ok'
+      );
+    } catch(e) {
+      mostrar(resultEl, '❌ Error al descifrar archivo: ' + (e.message || e), 'err');
+    }
+  });
+
   // ---- Enter en campos de clave ----
   document.getElementById('claveCifrar').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') document.getElementById('btnCifrar').click();
   });
   document.getElementById('claveDescifrar').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') document.getElementById('btnDescifrar').click();
+  });
+  document.getElementById('claveArchivo').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('btnDescifrarArchivo').click();
   });
 
 })();
