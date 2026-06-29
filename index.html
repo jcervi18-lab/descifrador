@@ -2,125 +2,248 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>🔓 Descifrar AES-256-GCM</title>
+<title>🔐 Cifrar / Descifrar AES-256-GCM</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          background: #f0f2f5; display: flex; justify-content: center; align-items: center;
-         min-height: 100vh; padding: 20px; }
+         min-height: 100vh; padding: 16px; }
   .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.1);
-          padding: 30px; width: 100%; max-width: 520px; }
-  h1 { font-size: 20px; color: #198754; margin-bottom: 20px; text-align: center; }
+          padding: 24px; width: 100%; max-width: 520px; }
+  h1 { font-size: 20px; color: #0d6efd; margin-bottom: 4px; text-align: center; }
+  .subtitle { font-size: 13px; color: #888; text-align: center; margin-bottom: 16px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; background: #e9ecef;
+          border-radius: 10px; padding: 3px; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 8px;
+         font-size: 14px; font-weight: 600; cursor: pointer; transition: .2s;
+         border: none; background: transparent; color: #666; }
+  .tab.active { background: white; color: #0d6efd; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .tab.cifrar.active { color: #0d6efd; }
+  .tab.descifrar.active { color: #198754; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
   label { display: block; font-size: 13px; font-weight: 600; color: #555; margin: 12px 0 4px; }
-  textarea, input[type="password"] { width: 100%; padding: 12px; border: 1px solid #ccc;
-         border-radius: 8px; font-size: 14px; resize: vertical; }
+  textarea, input[type="password"], input[type="text"] {
+    width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px;
+    font-size: 14px; resize: vertical; outline: none; transition: border .2s; }
+  textarea:focus, input:focus { border-color: #0d6efd; }
   textarea { min-height: 80px; font-family: 'SF Mono', Monaco, monospace; font-size: 13px; }
-  input[type="password"] { height: 44px; }
-  button { width: 100%; padding: 12px; background: #198754; color: white; border: none;
-           border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 16px; }
-  button:hover { background: #157347; }
+  input[type="password"], input[type="text"] { height: 44px; }
+
+  .btn { width: 100%; padding: 12px; color: white; border: none; border-radius: 8px;
+         font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 16px; transition: background .2s; }
+  .btn-cifrar { background: #0d6efd; }
+  .btn-cifrar:hover { background: #0b5ed7; }
+  .btn-descifrar { background: #198754; }
+  .btn-descifrar:hover { background: #157347; }
+
   .result { margin-top: 16px; padding: 14px; border-radius: 8px; display: none; word-break: break-word; }
   .ok { background: #d4edda; color: #155724; display: block; }
   .err { background: #f8d7da; color: #721c24; display: block; }
-  .info { font-size: 12px; color: #888; text-align: center; margin-top: 16px; }
-  .info a { color: #0d6efd; }
-  #debug { font-size: 11px; color: #999; margin-top: 10px; display: none; word-break: break-all; }
+  .info { background: #cff4fc; color: #055160; display: block; }
+  .copiar-btn { margin-top: 8px; padding: 8px 16px; background: #0d6efd; color: white;
+                border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .copiar-btn:hover { background: #0b5ed7; }
+  .clear-btn { background: none; border: none; color: #999; font-size: 12px;
+               cursor: pointer; float: right; margin-top: 4px; }
+  .clear-btn:hover { color: #666; }
+  .footer { font-size: 12px; color: #aaa; text-align: center; margin-top: 20px; }
+  .footer a { color: #0d6efd; }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>🔓 Descifrar AES-256-GCM</h1>
-  <p style="color:#666;font-size:13px;text-align:center;margin-bottom:8px;">
-    Todo el proceso ocurre en tu navegador. Nada se envía a ningún servidor.
-  </p>
+  <h1>🔐 AES-256-GCM</h1>
+  <p class="subtitle">Todo en tu navegador. Nada sale de aquí.</p>
 
-  <label for="cifrado">Texto cifrado (base64)</label>
-  <textarea id="cifrado" placeholder="Pega aquí el texto cifrado..."></textarea>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab cifrar active" data-tab="cifrar" id="tabCifrar">🔒 Cifrar</button>
+    <button class="tab descifrar" data-tab="descifrar" id="tabDescifrar">🔓 Descifrar</button>
+  </div>
 
-  <label for="clave">Clave</label>
-  <input type="password" id="clave" placeholder="Contraseña con la que se cifró...">
+  <!-- Panel Cifrar -->
+  <div class="panel active" id="panelCifrar">
+    <label for="mensaje">Mensaje a cifrar</label>
+    <textarea id="mensaje" placeholder="Escribe aquí el mensaje..."></textarea>
 
-  <button id="btn">🔓 Descifrar</button>
+    <label for="claveCifrar">Clave</label>
+    <div style="position:relative">
+      <input type="password" id="claveCifrar" placeholder="Contraseña">
+      <button class="clear-btn" id="clearClaveCifrar" title="Limpiar">✕</button>
+    </div>
 
-  <div id="resultado" class="result"></div>
+    <button class="btn btn-cifrar" id="btnCifrar">🔒 Cifrar mensaje</button>
 
-  <p class="info">
-    Compatible con mensajes cifrados desde Jcervi_Lab Control Panel
-  </p>
+    <div id="resultCifrar" class="result"></div>
+  </div>
+
+  <!-- Panel Descifrar -->
+  <div class="panel" id="panelDescifrar">
+    <label for="cifrado">Texto cifrado (base64)</label>
+    <textarea id="cifrado" placeholder="Pega aquí el texto cifrado..."></textarea>
+
+    <label for="claveDescifrar">Clave</label>
+    <div style="position:relative">
+      <input type="password" id="claveDescifrar" placeholder="Contraseña">
+      <button class="clear-btn" id="clearClaveDescifrar" title="Limpiar">✕</button>
+    </div>
+
+    <button class="btn btn-descifrar" id="btnDescifrar">🔓 Descifrar</button>
+
+    <div id="resultDescifrar" class="result"></div>
+  </div>
+
+  <p class="footer">Compatible con Jcervi_Lab Control Panel</p>
 </div>
 
 <script>
 (function() {
   'use strict';
 
-  const cifradoEl = document.getElementById('cifrado');
-  const claveEl = document.getElementById('clave');
-  const btn = document.getElementById('btn');
-  const resultEl = document.getElementById('resultado');
+  // ---- Tab switching ----
+  const tabs = document.querySelectorAll('.tab');
+  const panels = {
+    cifrar: document.getElementById('panelCifrar'),
+    descifrar: document.getElementById('panelDescifrar')
+  };
 
-  btn.addEventListener('click', descifrar);
+  tabs.forEach(t => {
+    t.addEventListener('click', function() {
+      const tab = this.dataset.tab;
+      tabs.forEach(t2 => t2.classList.remove('active'));
+      this.classList.add('active');
+      Object.keys(panels).forEach(k => panels[k].classList.remove('active'));
+      panels[tab].classList.add('active');
+      // Clear previous results when switching
+      document.querySelectorAll('.result').forEach(r => { r.style.display = 'none'; r.innerHTML = ''; });
+    });
+  });
 
+  // ---- Clear buttons ----
+  document.getElementById('clearClaveCifrar').addEventListener('click', function() {
+    document.getElementById('claveCifrar').value = '';
+  });
+  document.getElementById('clearClaveDescifrar').addEventListener('click', function() {
+    document.getElementById('claveDescifrar').value = '';
+  });
+
+  // ---- Helpers ----
   function b64ToBytes(str) {
-    // Limpiar espacios y convertir url-safe a base64 standard
     str = str.trim().replace(/\s/g, '');
     str = str.replace(/-/g, '+').replace(/_/g, '/');
-    // Añadir padding si falta
     while (str.length % 4 !== 0) str += '=';
-    return Uint8Array.from(atob(str), function(c) { return c.charCodeAt(0); });
+    return Uint8Array.from(atob(str), c => c.charCodeAt(0));
   }
 
-  async function descifrar() {
-    const raw = cifradoEl.value.trim();
-    const clave = claveEl.value.trim();
+  function bytesToB64(bytes) {
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  function mostrar(el, msg, tipo) {
+    el.className = 'result ' + tipo;
+    el.innerHTML = msg;
+    el.style.display = 'block';
+  }
+
+  function ocultar(el) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+
+  // ---- Cifrar ----
+  document.getElementById('btnCifrar').addEventListener('click', async function() {
+    const mensaje = document.getElementById('mensaje').value;
+    const clave = document.getElementById('claveCifrar').value;
+    const resultEl = document.getElementById('resultCifrar');
+    ocultar(resultEl);
+
+    if (!mensaje || !clave) {
+      mostrar(resultEl, '❌ Rellena ambos campos.', 'err');
+      return;
+    }
+
+    try {
+      // Generar nonce aleatorio (12 bytes)
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+
+      // Derivar clave AES-256 via SHA-256
+      const keyBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
+      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+
+      // Cifrar
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+        key,
+        new TextEncoder().encode(mensaje)
+      );
+
+      // Construir: nonce(12) + ciphertext+tag(juntos)
+      const combined = new Uint8Array(12 + encrypted.byteLength);
+      combined.set(nonce, 0);
+      combined.set(new Uint8Array(encrypted), 12);
+
+      const resultado = bytesToB64(combined);
+
+      mostrar(resultEl,
+        '✅ Mensaje cifrado correctamente!<br><br>' +
+        '<div style="font-size:11px;color:#888;margin-bottom:4px;">Texto cifrado (base64):</div>' +
+        '<textarea id="cifradoOutput" readonly style="min-height:60px;font-size:12px;resize:none;padding:10px;border:1px solid #86b7fe;border-radius:6px;background:#fff;width:100%;">' + resultado + '</textarea>' +
+        '<br><button class="copiar-btn" onclick="document.getElementById(\'cifradoOutput\').select();navigator.clipboard.writeText(document.getElementById(\'cifradoOutput\').value);this.textContent=\'✅ Copiado!\';setTimeout(()=>this.textContent=\'📋 Copiar\',2000);">📋 Copiar</button>',
+        'ok'
+      );
+    } catch(e) {
+      mostrar(resultEl, '❌ Error al cifrar: ' + (e.message || e), 'err');
+    }
+  });
+
+  // ---- Descifrar ----
+  document.getElementById('btnDescifrar').addEventListener('click', async function() {
+    const raw = document.getElementById('cifrado').value.trim();
+    const clave = document.getElementById('claveDescifrar').value;
+    const resultEl = document.getElementById('resultDescifrar');
+    ocultar(resultEl);
 
     if (!raw || !clave) {
-      mostrar('❌ Rellena ambos campos.', 'err');
+      mostrar(resultEl, '❌ Rellena ambos campos.', 'err');
       return;
     }
 
     try {
       var datos;
-      try {
-        datos = b64ToBytes(raw);
-      } catch(ex) {
-        mostrar('❌ El texto cifrado no tiene formato base64 válido.', 'err');
+      try { datos = b64ToBytes(raw); }
+      catch(ex) {
+        mostrar(resultEl, '❌ El texto cifrado no tiene formato base64 válido.', 'err');
         return;
       }
 
       if (datos.length < 28) {
-        mostrar('❌ El texto cifrado es demasiado corto (mínimo 28 bytes).', 'err');
+        mostrar(resultEl, '❌ El texto cifrado es demasiado corto (mínimo 28 bytes).', 'err');
         return;
       }
 
-      // Estructura: nonce(12) + ciphertext + tag(16)
       const nonce = datos.slice(0, 12);
-      const payload = datos.slice(12); // ciphertext + tag juntos
+      const payload = datos.slice(12);
 
       if (typeof crypto === 'undefined' || !crypto.subtle) {
-        mostrar('❌ Tu navegador no soporta Web Crypto API (HTTPS requerido).', 'err');
+        mostrar(resultEl, '❌ Tu navegador no soporta Web Crypto API (HTTPS requerido si no es local).', 'err');
         return;
       }
 
-      // Derivar clave AES-256 vía SHA-256
-      var keyBytes, key;
+      const keyBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
+      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
 
-      try {
-        keyBytes = await crypto.subtle.digest('SHA-256',
-          new TextEncoder().encode(clave));
-        key = await crypto.subtle.importKey('raw', keyBytes,
-          { name: 'AES-GCM' }, false, ['decrypt']);
-      } catch(ex) {
-        mostrar('❌ Error al procesar la clave: ' + ex.message, 'err');
-        return;
-      }
-
-      // Descifrar
       var descifrado;
-
       try {
         descifrado = await crypto.subtle.decrypt(
           { name: 'AES-GCM', iv: nonce, tagLength: 128 },
@@ -128,33 +251,31 @@
           payload
         );
       } catch(ex) {
-        mostrar('❌ Clave incorrecta o mensaje corrupto.', 'err');
+        mostrar(resultEl, '❌ Clave incorrecta o mensaje corrupto.', 'err');
         return;
       }
 
-      var texto;
+      var texto = new TextDecoder().decode(descifrado);
 
-      try {
-        texto = new TextDecoder().decode(descifrado);
-      } catch(ex) {
-        mostrar('❌ Error al decodificar el resultado.', 'err');
-        return;
-      }
-
-      mostrar('✅ Mensaje descifrado:<br><br><strong>' +
+      mostrar(resultEl,
+        '✅ Mensaje descifrado:<br><br><strong>' +
         texto.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
-        '</strong>');
-
+        '</strong>',
+        'ok'
+      );
     } catch(e) {
-      mostrar('❌ Error inesperado: ' + (e.message || e), 'err');
+      mostrar(resultEl, '❌ Error inesperado: ' + (e.message || e), 'err');
     }
-  }
+  });
 
-  function mostrar(msg, tipo) {
-    resultEl.className = 'result ' + tipo;
-    resultEl.innerHTML = msg;
-    resultEl.style.display = 'block';
-  }
+  // ---- Enter en campos de clave ----
+  document.getElementById('claveCifrar').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('btnCifrar').click();
+  });
+  document.getElementById('claveDescifrar').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('btnDescifrar').click();
+  });
+
 })();
 </script>
 </body>
